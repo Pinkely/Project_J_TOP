@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-const port = 3002;
+const port = 3001;
 
 const METADATA_FILE = path.join(__dirname, "files.json");
 
