@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-const port = 3001;
+const port = 3002;
 
 // --- [Middleware] ---
 app.use(cors());
@@ -18,45 +18,36 @@ app.get('/', (req, res) => {
 // เสิร์ฟไฟล์หน้าเว็บจากโฟลเดอร์ frontend
 app.use(express.static(path.join(__dirname, "../frontend")));
 
-// [เพิ่มใหม่] เก็บ notification queue ใน memory
+// เก็บ notification queue ใน memory
 const notifications = {};
 
 // --- [Routes สำหรับ Login] ---
 const loginRoutes = require('./login');
-app.use('/', loginRoutes); // รองรับ POST /login
+app.use('/', loginRoutes);
 
-// --- [Config Multer สำหรับเก็บไฟล์] ---
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        const dir = `uploads`;
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
-    },
-    filename: function (req, file, cb) {
-        cb(null, Date.now() + "-" + file.originalname);
-    }
-});
-const upload = multer({ storage: storage });
+// --- [Config Multer] ---
+// เก็บไฟล์ใน memory ก่อน แล้วค่อย rename เอง (ไม่ให้ multer ตั้งชื่อซ้ำซ้อน)
+const upload = multer({ storage: multer.memoryStorage() });
 
 // --- [API Endpoints] ---
 
-// POST upload — แยกโฟลเดอร์ตามคนรับ
+// POST /upload
 app.post("/upload", upload.single("file"), (req, res) => {
     try {
         const { recipient, sender } = req.body;
         if (!req.file) return res.status(400).json({ error: "No file" });
 
-        const oldPath = req.file.path;
-        const targetDir = `./uploads/${recipient}`;
-
+        const targetDir = path.join(__dirname, "uploads", recipient);
         if (!fs.existsSync(targetDir)) {
             fs.mkdirSync(targetDir, { recursive: true });
         }
 
-        const newPath = `${targetDir}/from_${sender}_${req.file.originalname}`;
-        fs.renameSync(oldPath, newPath);
+        // ชื่อไฟล์สุดท้าย: from_sender_ชื่อไฟล์เดิม (ไม่มี timestamp ซ้ำซ้อน)
+        const finalName = `from_${sender}_${req.file.originalname}`;
+        const finalPath = path.join(targetDir, finalName);
+        fs.writeFileSync(finalPath, req.file.buffer);
 
-        // [เพิ่มใหม่] สร้าง notification ให้คนรับ
+        // สร้าง notification
         const msg = {
             message: `📁 ${sender} ส่งไฟล์ "${req.file.originalname}" มาให้คุณ`,
             time: Date.now()
@@ -71,45 +62,56 @@ app.post("/upload", upload.single("file"), (req, res) => {
     }
 });
 
-// GET files — admin เห็นทุกคน, user เห็นแค่ตัวเอง
+// GET /files
 app.get("/files", (req, res) => {
     const { username, role } = req.query;
 
     if (role === "admin") {
-        if (!fs.existsSync("./uploads")) return res.json([]);
-        const users = fs.readdirSync("./uploads").filter(u =>
-            fs.statSync(`./uploads/${u}`).isDirectory()
+        const uploadsDir = path.join(__dirname, "uploads");
+        if (!fs.existsSync(uploadsDir)) return res.json([]);
+        const users = fs.readdirSync(uploadsDir).filter(u =>
+            fs.statSync(path.join(uploadsDir, u)).isDirectory()
         );
         let allFiles = [];
         users.forEach(user => {
-            const files = fs.readdirSync(`./uploads/${user}`);
+            const files = fs.readdirSync(path.join(uploadsDir, user));
             files.forEach(file => allFiles.push({ user, file }));
         });
         res.json(allFiles);
     } else {
-        const dir = `./uploads/${username}`;
+        const dir = path.join(__dirname, "uploads", username);
         if (!fs.existsSync(dir)) return res.json([]);
         const files = fs.readdirSync(dir);
         res.json(files.map(file => ({ user: username, file })));
     }
 });
 
-// GET download
+// GET /download/:username/:name
 app.get("/download/:username/:name", (req, res) => {
-    const filePath = path.join(__dirname, 'uploads', req.params.username, req.params.name);
+    const filePath = path.join(__dirname, "uploads", req.params.username, req.params.name);
     res.download(filePath);
 });
 
-// DELETE
+// GET /preview/:username/:name  ← ต้องอยู่ก่อน app.listen()
+app.get("/preview/:username/:name", (req, res) => {
+    const filePath = path.join(__dirname, "uploads", req.params.username, req.params.name);
+    if (fs.existsSync(filePath)) {
+        res.sendFile(filePath);
+    } else {
+        res.status(404).send("File not found");
+    }
+});
+
+// DELETE /delete/:username/:name
 app.delete("/delete/:username/:name", (req, res) => {
-    const file = `./uploads/${req.params.username}/${req.params.name}`;
-    fs.unlink(file, (err) => {
+    const filePath = path.join(__dirname, "uploads", req.params.username, req.params.name);
+    fs.unlink(filePath, (err) => {
         if (err) return res.status(500).json({ error: "Cannot delete file" });
         res.json({ message: "Deleted success" });
     });
 });
 
-// [เพิ่มใหม่] GET /notifications/:username (polling)
+// GET /notifications/:username
 app.get("/notifications/:username", (req, res) => {
     const { username } = req.params;
     const msgs = notifications[username] || [];
