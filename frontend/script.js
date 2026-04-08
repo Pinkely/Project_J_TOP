@@ -1,5 +1,8 @@
 const API_URL = "http://192.168.1.43:3001";
 let allFilesData = [];
+let _rowDataMap = {}; // key: 'user__file' → item object
+let sortKey = 'file';
+let sortDir = 'asc';
 
 // =============================
 // Init
@@ -102,13 +105,17 @@ async function loadFiles() {
     try {
         const response = await fetch(`${API_URL}/files?username=${username}&role=${role}`);
         allFilesData = await response.json();
+        _rowDataMap = {};
+        allFilesData.forEach(item => { _rowDataMap[item.user + '__' + item.file] = item; });
         renderFiles(allFilesData);
     } catch (error) {
         console.error("Error loading files:", error);
     }
 }
 
-// Helper: format bytes
+// =============================
+// Helpers
+// =============================
 function formatSize(bytes) {
     if (!bytes || bytes === 0) return '—';
     if (bytes < 1024) return bytes + ' B';
@@ -116,7 +123,6 @@ function formatSize(bytes) {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 }
 
-// Helper: format date
 function formatDate(iso) {
     if (!iso) return '—';
     const d = new Date(iso);
@@ -132,7 +138,93 @@ function getFileIcon(filename) {
     return icons[ext] || '📁';
 }
 
-// แสดงไฟล์แบบแยกหัวข้อตาม user
+function getSortIcon(key) {
+    const active = sortKey === key;
+    const icon = active ? (sortDir === 'asc' ? '↑' : '↓') : '↕';
+    const opacity = active ? '1' : '0.35';
+    return `<span class="sort-icon-el" style="opacity:${opacity}">${icon}</span>`;
+}
+
+// =============================
+// Sort
+// =============================
+function setSort(key) {
+    if (sortKey === key) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortKey = key;
+        sortDir = 'asc';
+    }
+
+    // อัปเดต icon ทุก column header
+    document.querySelectorAll('.sortable[data-sort]').forEach(el => {
+        const k = el.getAttribute('data-sort');
+        const icon = el.querySelector('.sort-icon-el');
+        if (!icon) return;
+        if (k === sortKey) {
+            icon.textContent = sortDir === 'asc' ? '↑' : '↓';
+            icon.style.opacity = '1';
+        } else {
+            icon.textContent = '↕';
+            icon.style.opacity = '0.35';
+        }
+    });
+
+    // sort rows ใน each .file-table แบบ in-place
+    const container = document.getElementById("fileList") || document.getElementById("fileListContainer");
+    if (!container) return;
+    container.querySelectorAll('.file-table').forEach(table => {
+        const rows = [...table.querySelectorAll('.file-row')];
+        if (!rows.length) return;
+        rows.sort((a, b) => {
+            const aData = _rowDataMap[a.dataset.user + '__' + a.dataset.file] || {};
+            const bData = _rowDataMap[b.dataset.user + '__' + b.dataset.file] || {};
+            let va = aData[sortKey] ?? '';
+            let vb = bData[sortKey] ?? '';
+            if (sortKey === 'size') return sortDir === 'asc' ? va - vb : vb - va;
+            if (sortKey === 'uploadTime') return sortDir === 'asc'
+                ? new Date(va) - new Date(vb)
+                : new Date(vb) - new Date(va);
+            return sortDir === 'asc'
+                ? va.toString().localeCompare(vb.toString())
+                : vb.toString().localeCompare(va.toString());
+        });
+        rows.forEach(row => table.appendChild(row));
+    });
+}
+
+function sortItems(items) {
+    return [...items].sort((a, b) => {
+        let va = a[sortKey] ?? '';
+        let vb = b[sortKey] ?? '';
+        if (sortKey === 'size') {
+            return sortDir === 'asc' ? va - vb : vb - va;
+        }
+        if (sortKey === 'uploadTime') {
+            return sortDir === 'asc'
+                ? new Date(va) - new Date(vb)
+                : new Date(vb) - new Date(va);
+        }
+        return sortDir === 'asc'
+            ? va.toString().localeCompare(vb.toString())
+            : vb.toString().localeCompare(va.toString());
+    });
+}
+
+// =============================
+// Collapse / Expand
+// =============================
+function toggleGroup(header) {
+    const table = header.nextElementSibling;
+    const arrow = header.querySelector('.collapse-arrow');
+    const isOpen = table.style.display !== 'none';
+    table.style.display = isOpen ? 'none' : 'flex';
+    arrow.textContent = isOpen ? '▷' : '▽';
+}
+
+// =============================
+// Render ไฟล์
+// =============================
 function renderFiles(data) {
     const container = document.getElementById("fileList") || document.getElementById("fileListContainer");
     const noFiles = document.getElementById("no-files");
@@ -151,37 +243,44 @@ function renderFiles(data) {
 
     if (noFiles) noFiles.style.display = "none";
 
-    // จัดกลุ่มตาม user — เก็บ object เต็มไว้
+    // จัดกลุ่มตาม user
     const grouped = data.reduce((acc, curr) => {
         if (!acc[curr.user]) acc[curr.user] = [];
         acc[curr.user].push(curr);
         return acc;
     }, {});
 
-    container.innerHTML = Object.entries(grouped).map(([user, items]) => `
-        <div class="user-group">
-            <div class="user-group-header">
-                <div class="user-avatar">${user.charAt(0).toUpperCase()}</div>
+    // helper สร้าง HTML ของ group
+    function buildGroup(label, avatar, items, isAll = false) {
+        const sorted = sortItems(items);
+        const avatarHTML = isAll
+            ? `<div class="user-avatar" style="background:#6366f1">★</div>`
+            : `<div class="user-avatar">${avatar}</div>`;
+        return `
+        <div class="user-group ${isAll ? 'user-group-all' : ''}">
+            <div class="user-group-header" onclick="toggleGroup(this)">
+                ${avatarHTML}
                 <div class="user-info">
-                    <span class="user-name">${user}</span>
+                    <span class="user-name">${label}</span>
                     <span class="file-count">${items.length} file${items.length > 1 ? 's' : ''}</span>
                 </div>
+                <span class="collapse-arrow">▽</span>
             </div>
             <div class="file-table">
                 <div class="file-table-head">
-                    <span class="col-name">ชื่อไฟล์</span>
-                    <span class="col-sender">ผู้ส่ง</span>
-                    <span class="col-date">วันที่อัพโหลด</span>
-                    <span class="col-size">ขนาด</span>
+                    <span class="col-name sortable" data-sort="file" onclick="event.stopPropagation(); setSort('file')">ชื่อไฟล์ ${getSortIcon('file')}</span>
+                    <span class="col-sender sortable" data-sort="sender" onclick="event.stopPropagation(); setSort('sender')">ผู้ส่ง ${getSortIcon('sender')}</span>
+                    <span class="col-date sortable" data-sort="uploadTime" onclick="event.stopPropagation(); setSort('uploadTime')">วันที่อัพโหลด ${getSortIcon('uploadTime')}</span>
+                    <span class="col-size sortable" data-sort="size" onclick="event.stopPropagation(); setSort('size')">ขนาด ${getSortIcon('size')}</span>
                     <span class="col-actions">Actions</span>
                 </div>
-                ${items.map(item => `
+                ${sorted.map(item => `
                     <div class="file-row" data-user="${item.user}" data-file="${item.file}">
                         <span class="col-name file-name-cell">
                             <span class="file-icon">${getFileIcon(item.file)}</span>
                             <span class="file-label">${item.file}</span>
                         </span>
-                        <span class="col-sender sender-badge">${item.sender || user}</span>
+                        <span class="col-sender sender-badge">${item.sender || item.user}</span>
                         <span class="col-date date-cell">${formatDate(item.uploadTime)}</span>
                         <span class="col-size size-cell">${formatSize(item.size)}</span>
                         <span class="col-actions action-btns">
@@ -197,8 +296,27 @@ function renderFiles(data) {
                     </div>
                 `).join('')}
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }
+
+    // All files group อยู่บนสุด (collapsed by default)
+    const allGroup = buildGroup('All Files', '★', data, true);
+
+    // แต่ละ user group
+    const userGroups = Object.entries(grouped).map(([user, items]) =>
+        buildGroup(user, user.charAt(0).toUpperCase(), items)
+    ).join('');
+
+    container.innerHTML = allGroup + userGroups;
+
+    // collapse All group by default
+    const allGroupEl = container.querySelector('.user-group-all');
+    if (allGroupEl) {
+        const table = allGroupEl.querySelector('.file-table');
+        const arrow = allGroupEl.querySelector('.collapse-arrow');
+        if (table) table.style.display = 'none';
+        if (arrow) arrow.textContent = '▷';
+    }
 
     // ผูก hover preview
     container.querySelectorAll(".file-row[data-user]").forEach(row => {
@@ -248,7 +366,6 @@ async function uploadFile(event) {
         const fileNameEl = document.getElementById("fileName");
         if (fileNameEl) fileNameEl.innerText = "No file chosen";
 
-        // ล้าง preview
         const previewBox = document.getElementById("uploadPreviewBox");
         const previewImg = document.getElementById("uploadPreviewImg");
         if (previewBox) previewBox.style.display = "none";

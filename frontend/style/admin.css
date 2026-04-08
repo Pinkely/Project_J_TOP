@@ -197,3 +197,24 @@ button { transition: all 0.2s ease !important; font-weight: 500 !important; }
 .empty-state { text-align: center; padding: 40px; color: var(--text-gray); }
 .empty-state span { font-size: 40px; display: block; margin-bottom: 10px; }
 .empty-state p { font-size: 14px; }
+
+/* คอลัมน์ที่ sort ได้ */
+.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+.sortable:hover { color: var(--primary-blue); }
+
+.sort-icon { font-size: 10px; opacity: 0.6; }
+
+/* ลูกศร collapse */
+.collapse-arrow {
+    margin-left: auto;
+    font-size: 13px;
+    color: var(--text-gray);
+    transition: transform 0.2s;
+}
+
+/* user-group-header กดได้ */
+.user-group-header { cursor: pointer; }
+.user-group-header:hover { background: #e0edff; }
