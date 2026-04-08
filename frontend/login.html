@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pink Auth System</title>
+    <link rel="stylesheet" href="./style/login.css" />
+</head>
+
+<body>
+
+    <div class="auth-container">
+
+        <div id="loginView">
+            <div class="icon-header">💖</div>
+            <h1>Welcome Back</h1>
+            <p>Login to your account</p>
+            <input type="text" id="login-username" placeholder="Username">
+            <input type="password" id="login-password" placeholder="Password">
+            <button onclick="login()">Login</button>
+            <div class="action-links">
+                <span onclick="switchView('registerView')">Create Account</span> |
+                <span onclick="switchView('resetView')">Forgot Password?</span>
+            </div>
+        </div>
+
+        <div id="registerView" style="display: none;">
+            <div class="icon-header">✨</div>
+            <h1>Join Us!</h1>
+            <p>Create a new account</p>
+            <input type="text" id="reg-username" placeholder="New Username">
+            <input type="password" id="reg-password" placeholder="New Password">
+            <button onclick="register()">Sign Up</button>
+            <div class="action-links">
+                <span onclick="switchView('loginView')">Back to Login</span>
+            </div>
+        </div>
+
+        <div id="resetView" style="display: none;">
+            <div class="icon-header">🔒</div>
+            <h1>Reset</h1>
+            <p>Enter your new password</p>
+            <input type="text" id="reset-username" placeholder="Your Username">
+            <input type="password" id="reset-password" placeholder="New Password">
+            <button onclick="resetPassword()">Update Password</button>
+            <div class="action-links">
+                <span onclick="switchView('loginView')">Back to Login</span>
+            </div>
+        </div>
+
+        <p id="statusMessage" class="error-text"></p>
+    </div>
+
+    <div id="successModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="success-icon">✅</div>
+            <h2 id="modalTitle">Success!</h2>
+            <p id="modalMessage">Your action was successful.</p>
+            <button onclick="closeModal()" class="modal-btn">OK</button>
+        </div>
+    </div>
+
+    <script src="login-client.js"></script>
+</body>
+
+</html>

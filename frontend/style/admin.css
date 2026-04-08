@@ -1,0 +1,85 @@
+/* admin.css */
+:root {
+    --primary-blue: #2563eb;
+    --hover-blue: #1d4ed8;
+    --bg-light: #f8fafc;
+    --card-bg: #ffffff;
+    --text-dark: #1e293b;
+    --text-gray: #64748b;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --border: #e2e8f0;
+}
+
+body {
+    background-color: var(--bg-light);
+    color: var(--text-dark);
+    font-family: 'Inter', -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+/* ล้าง Inline Style ของ Header */
+div[style*="padding-left: 10px"] {
+    background: white;
+    padding: 1rem 5% !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    margin-bottom: 2rem;
+}
+
+h1 { font-size: 1.5rem; color: var(--text-dark); }
+#user { color: var(--primary-blue) !important; }
+
+/* ปรับแต่ง Card Containers */
+div[style*="border: 2px solid"] {
+    max-width: 800px;
+    margin: 0 auto 20px auto !important;
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    padding: 2rem !important;
+    transition: transform 0.2s ease;
+}
+
+div[style*="border: 2px solid"]:hover {
+    transform: translateY(-2px);
+}
+
+/* ปุ่มและ Input */
+button {
+    transition: all 0.3s ease !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.5px;
+}
+
+button:hover {
+    filter: brightness(1.1);
+    transform: scale(1.02);
+}
+
+#searchBox {
+    width: 80%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    outline: none;
+}
+
+#searchBox:focus {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* List Style */
+ul {
+    list-style: none;
+    padding: 0;
+    text-align: left;
+}
+
+li {
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-gray);
+}

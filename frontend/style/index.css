@@ -1,0 +1,58 @@
+/* index.css */
+:root {
+    --main-blue: #3b82f6;
+    --soft-blue: #dbeafe;
+    --dark-blue: #1e3a8a;
+    --white: #ffffff;
+    --gray-100: #f3f4f6;
+}
+
+body {
+    background-color: #f0f4f8;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+}
+
+/* ปรับ Layout หลัก */
+div[style*="display: flex; gap: 10px"] {
+    max-width: 1200px;
+    margin: 0 auto !important;
+    height: auto !important;
+    padding: 20px !important;
+}
+
+/* ปรับความกว้างของคอลัมน์ */
+div[style*="width: 50%"] {
+    background: var(--white) !important;
+    border: none !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05) !important;
+    padding: 30px !important;
+}
+
+h2, h3 { color: var(--dark-blue); }
+
+/* ปุ่ม Upload */
+button[onclick="uploadFile()"] {
+    background-color: var(--main-blue) !important;
+    border-radius: 8px !important;
+    padding: 12px 30px !important;
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* ส่วนแสดงไฟล์ */
+#fileList {
+    text-align: left;
+}
+
+#fileList li {
+    background: var(--gray-100);
+    margin-bottom: 8px;
+    padding: 12px;
+    border-radius: 8px;
+    color: var(--dark-blue);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}

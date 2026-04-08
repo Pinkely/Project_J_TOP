@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Workshop #6 File Upload</title>
+    <link rel="stylesheet" href="./style/admin.css" />
+  </head>
+
+  <body>
+    <div
+      style="
+        padding-left: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      "
+    >
+      <div>
+        <h1>
+          Welcome Admin (<span
+            style="color: #7f8eca; font-weight: bold"
+            id="user"
+          ></span
+          >)
+        </h1>
+      </div>
+      <div>
+        <button
+          onclick="logout()"
+          style="
+            padding: 10px 20px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-right: 10px;
+          "
+        >
+          Logout
+        </button>
+      </div>
+    </div>
+    <div style="text-align: center; padding: 20px">
+      <div
+        style="
+          border: 2px solid rgb(192, 192, 192);
+          width: 100%;
+          border-radius: 10px;
+          box-shadow: 0.1px 0.1px 5px;
+        "
+      >
+        <h2>Upload File</h2>
+        <input type="file" id="fileInput" />
+        <br /><br />
+        
+
+         <!-- [แก้] เปลี่ยนจาก select เป็น checkbox เพื่อเลือกผู้รับได้หลายคน -->
+            <div id="recipientList" style="display: inline-flex; gap: 12px; margin-bottom: 8px;">
+                <label><input type="checkbox" value="alice"> Alice</label>
+                <label><input type="checkbox" value="bob"> Bob</label>
+            </div>
+            <br>
+            <button onclick="uploadFile(event)"  style="
+            padding: 10px 20px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+          ">Upload & Send</button>
+           
+        
+        <div>
+          <h3>My File</h3>
+          <p id="fileName">No file chosen</p>
+        </div>
+      </div>
+      <div
+        style="
+          border: 2px solid rgb(192, 192, 192);
+          width: 100%;
+          border-radius: 10px;
+          box-shadow: 0.1px 0.1px 5px;
+          margin-top: 20px;
+        "
+      >
+        <p id="uploadStatus"></p>
+        <h3>Files on Server</h3>
+        <div>
+          <input type="text" id="searchBox" placeholder="search by name" />
+          <ul id="nameList"></ul>
+        </div>
+        <ul id="fileList"></ul>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
