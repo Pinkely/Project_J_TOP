@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-const port = 3001;
+const port = 3002;
 
 const METADATA_FILE = path.join(__dirname, "files.json");
 
@@ -28,19 +28,8 @@ const loginRoutes = require('./login');
 app.use('/', loginRoutes);
 
 // --- [Config Multer] ---
-// ใช้ memoryStorage เพื่อควบคุมชื่อไฟล์เองได้ (ไม่มี timestamp ซ้ำซ้อน)
+// เก็บไฟล์ใน memory ก่อน แล้วค่อย rename เอง (ไม่ให้ multer ตั้งชื่อซ้ำซ้อน)
 const upload = multer({ storage: multer.memoryStorage() });
-
-// --- [Metadata Helpers] ---
-function readMetadata() {
-    if (!fs.existsSync(METADATA_FILE)) return [];
-    const data = fs.readFileSync(METADATA_FILE);
-    return JSON.parse(data);
-}
-
-function saveMetadata(metadata) {
-    fs.writeFileSync(METADATA_FILE, JSON.stringify(metadata, null, 2));
-}
 
 // --- [API Endpoints] ---
 
@@ -55,27 +44,12 @@ app.post("/upload", upload.single("file"), (req, res) => {
             fs.mkdirSync(targetDir, { recursive: true });
         }
 
-        // ชื่อไฟล์สุดท้าย: from_sender_ชื่อไฟล์เดิม
+        // ชื่อไฟล์สุดท้าย: from_sender_ชื่อไฟล์เดิม (ไม่มี timestamp ซ้ำซ้อน)
         const finalName = `from_${sender}_${req.file.originalname}`;
         const finalPath = path.join(targetDir, finalName);
         fs.writeFileSync(finalPath, req.file.buffer);
 
-        // บันทึก Metadata
-        const files = readMetadata();
-        const newFile = {
-            id: Date.now().toString(),
-            filename: req.file.originalname,
-            path: finalPath,
-            size: req.file.size,
-            sender,
-            recipient,
-            uploadTime: new Date().toISOString()
-        };
-        files.push(newFile);
-        saveMetadata(files);
-        console.log("Metadata saved:", newFile);
-
-        // สร้าง notification ให้คนรับ
+        // สร้าง notification
         const msg = {
             message: `📁 ${sender} ส่งไฟล์ "${req.file.originalname}" มาให้คุณ`,
             time: Date.now()
@@ -90,7 +64,7 @@ app.post("/upload", upload.single("file"), (req, res) => {
     }
 });
 
-// GET /files — admin เห็นทุกคน, user เห็นแค่ตัวเอง
+// GET /files
 app.get("/files", (req, res) => {
     const { username, role } = req.query;
 
@@ -120,7 +94,7 @@ app.get("/download/:username/:name", (req, res) => {
     res.download(filePath);
 });
 
-// GET /preview/:username/:name
+// GET /preview/:username/:name  ← ต้องอยู่ก่อน app.listen()
 app.get("/preview/:username/:name", (req, res) => {
     const filePath = path.join(__dirname, "uploads", req.params.username, req.params.name);
     if (fs.existsSync(filePath)) {
