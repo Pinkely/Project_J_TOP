@@ -345,7 +345,7 @@ async function uploadFile(event) {
         return;
     }
     if (recipients.length === 0) {
-        alert("กรุณาเลือกผู้รับอย่างน้อย 1 คน");
+        alert("Please select at least one recipient.");
         return;
     }
 
