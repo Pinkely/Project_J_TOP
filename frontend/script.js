@@ -1,199 +1,194 @@
-const serverURL = "http://192.168.1.38:3001";
+const API_URL = "http://192.168.1.27:3001";
+let allFilesData = []; // เก็บข้อมูลไฟล์ทั้งหมดเพื่อใช้ตอน Search
 
-const username = localStorage.getItem("username");
-const role = localStorage.getItem("role");
-//let allFiles = [];
-
-// แสดง username บนหน้า
-const userElement = document.getElementById("user");
-if (userElement) {
-    userElement.textContent = username;
-}
-const logout = () => {
-    localStorage.clear();
-    alert("Logout successful");
-    window.location.href = "login.html";
-}
-
-// เช็คใน Console ว่าค่ากลับมาจริงไหม
-console.log("Restored User:", username, "Role:", role);
-
-// ถ้าหน้าเว็บโหลดเสร็จ ให้เรียกแสดงรายการไฟล์ทันที
-window.onload = () => {
-    if (username) {
-        fetchFileList();
-    } else {
-        alert("กรุณา Login ก่อนเข้าใช้งาน");
-        window.location.href = "login.html";
+// ตรวจสอบสถานะตอนโหลดหน้า
+document.addEventListener("DOMContentLoaded", () => {
+    const user = localStorage.getItem("username");
+    if (!user) {
+        window.location.href = "/login.html"; // ถ้าไม่ได้ล็อกอินให้เด้งกลับ
+        return;
     }
-};
+    
+    const userDisplay = document.getElementById("user");
+    if (userDisplay) userDisplay.innerText = user;
 
+    loadFiles();
+});
 
-// Fetch และ render ไฟล์
-function fetchFileList() {
-    if (!username || !role) return; // กัน Error ถ้ายังไม่ Login
-    fetch(`${serverURL}/files?username=${username}&role=${role}`)
-        .then(res => res.json())
-        .then(files => {
-            const fileList = document.getElementById("fileList");
-            fileList.innerHTML = files.map(({ user, file }) => `
-                <li style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee;">
-                    <span>${role === 'admin' ? `[${user}] ` : ''}${file}</span>
-                    <div>
-                        <button onclick="downloadFile('${user}', '${file}')"
-                            style="padding: 5px 10px; background-color: #008CBA; color: white; border: none; cursor: pointer; border-radius: 5px; margin-right: 5px;">
-                            Download
-                        </button>
-                        <button onclick="deleteFile('${user}', '${file}')"
-                            style="padding: 5px 10px; background-color: #f44336; color: white; border: none; cursor: pointer; border-radius: 5px;">
-                            Delete
-                        </button>
-                    </div>
-                </li>
-            `).join("")
-        })
-        .catch(err => console.error("Fetch error:", err));
+// ออกจากระบบ
+function logout() {
+    localStorage.clear();
+    window.location.href = "/login.html";
 }
 
-const uploadFile = async (event) => {
-    event.preventDefault();
+// อัปเดตชื่อไฟล์ตอนเลือก
+function updateFileName() {
     const fileInput = document.getElementById("fileInput");
-    const sender = localStorage.getItem("username");
-    if (!fileInput.files[0]) return;
+    const fileNameDisplay = document.getElementById("fileName");
+    if (fileInput.files.length > 0) {
+        fileNameDisplay.innerText = fileInput.files[0].name;
+    } else {
+        fileNameDisplay.innerText = "No file chosen";
+    }
+}
 
-    // [แก้] ดึง checkbox ที่ติ๊กไว้ทั้งหมด แทนการดึงจาก select คนเดียว
-    const recipients = [...document.querySelectorAll("#recipientList input:checked")]
-        .map(el => el.value);
+// โหลดไฟล์จาก Server และจัดกลุ่มตามชื่อผู้ใช้
+async function loadFiles() {
+    const username = localStorage.getItem("username");
+    const role = localStorage.getItem("role");
+    
+    try {
+        const response = await fetch(`${API_URL}/files?username=${username}&role=${role}`);
+        allFilesData = await response.json(); 
+        renderFiles(allFilesData);
+    } catch (error) {
+        console.error("Error loading files:", error);
+    }
+}
 
-    if (recipients.length === 0) {
-        alert("กรุณาเลือกผู้รับอย่างน้อย 1 คน");
+// ฟังก์ชันแสดงผลไฟล์ลงบนหน้าเว็บ
+function renderFiles(data) {
+    const container = document.getElementById("fileListContainer");
+    if (!container) return;
+    
+    container.innerHTML = ""; // ล้างหน้าจอก่อน
+
+    if (data.length === 0) {
+        container.innerHTML = "<p style='text-align: center; color: gray;'>No files available.</p>";
         return;
     }
 
-    // [แก้] วนลูปส่งให้ทุกคนที่เลือก ทีละ request
-    for (const recipient of recipients) {
-        const formData = new FormData();
-        formData.append("file", fileInput.files[0]);
-        formData.append("recipient", recipient);
-        formData.append("sender", sender);
+    // 1. จัดกลุ่มข้อมูล (Group by user)
+    const groupedFiles = data.reduce((acc, curr) => {
+        if (!acc[curr.user]) acc[curr.user] = [];
+        acc[curr.user].push(curr.file);
+        return acc;
+    }, {});
 
-        await fetch(`${serverURL}/upload`, {
-            method: "POST",
-            body: formData
+    // 2. สร้าง UI สำหรับแต่ละ User
+    for (const [userFolder, files] of Object.entries(groupedFiles)) {
+        
+        // สร้างหัวข้อชื่อ User
+        const header = document.createElement("h3");
+        header.innerHTML = `📁 โฟลเดอร์ของ: <span style="color: #e91e63;">${userFolder}</span>`;
+        header.style.marginTop = "20px";
+        header.style.paddingBottom = "5px";
+        header.style.borderBottom = "2px solid #f0f0f0";
+
+        // สร้างลิสต์ไฟล์
+        const ul = document.createElement("ul");
+        ul.style.listStyleType = "none";
+        ul.style.padding = "0";
+
+        files.forEach(file => {
+            const li = document.createElement("li");
+            li.style.display = "flex";
+            li.style.justifyContent = "space-between";
+            li.style.alignItems = "center";
+            li.style.padding = "10px";
+            li.style.borderBottom = "1px solid #f9f9f9";
+
+            li.innerHTML = `
+                <span>📄 ${file}</span>
+                <div>
+                    <button onclick="downloadFile('${userFolder}', '${file}')" style="padding: 5px 10px; background-color: #2196F3; color: white; border: none; border-radius: 3px; cursor: pointer;">Download</button>
+                    <button onclick="deleteFile('${userFolder}', '${file}')" style="padding: 5px 10px; background-color: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; margin-left: 5px;">Delete</button>
+                </div>
+            `;
+            ul.appendChild(li);
         });
+
+        container.appendChild(header);
+        container.appendChild(ul);
+    }
+}
+
+// อัปโหลดไฟล์ (ส่งได้หลายคนตาม Checkbox)
+async function uploadFile(event) {
+    event.preventDefault();
+    const fileInput = document.getElementById("fileInput");
+    const statusText = document.getElementById("uploadStatus");
+    const sender = localStorage.getItem("username");
+
+    // ดึงรายชื่อคนที่ถูกติ๊กเลือก
+    const checkboxes = document.querySelectorAll('#recipientList input[type="checkbox"]:checked');
+    const recipients = Array.from(checkboxes).map(cb => cb.value);
+
+    if (fileInput.files.length === 0) {
+        alert("Please select a file to upload.");
+        return;
+    }
+    if (recipients.length === 0) {
+        alert("Please select at least one recipient.");
+        return;
     }
 
-    alert("ส่งไฟล์ให้ " + recipients.join(", ") + " เรียบร้อย!");
-    fetchFileList();
-    fileInput.value = "";
-};
+    const file = fileInput.files[0];
+    statusText.innerText = "Uploading...";
+    statusText.style.color = "blue";
 
+    try {
+        // วนลูปส่งไฟล์ให้ทีละคนที่เลือก
+        for (const recipient of recipients) {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("sender", sender);
+            formData.append("recipient", recipient);
 
-// Upload แบบเก่า (ยังไม่แยกคนรับ)
-// function uploadFile() {
-//     const fileInput = document.getElementById("fileInput");
-//     const file = fileInput.files[0];
-//     if (!file) return;
-
-//     document.getElementById("fileName").textContent = file.name;
-
-//     const formData = new FormData();
-//     formData.append("file", file);
-
-//     fetch(`${serverURL}/upload?username=${username}`, {
-//         method: "POST",
-//         body: formData
-//     })
-//         .then(res => res.json())
-//         .then(data => {
-//             document.getElementById("uploadStatus").textContent = data.message;
-//             fetchFileList();
-//         });
-// }
-
-// Download
-function downloadFile(user, fileName) {
-    window.location.href = `${serverURL}/download/${user}/${fileName}`;
-}
-
-// Delete
-function deleteFile(user, fileName) {
-    fetch(`${serverURL}/delete/${user}/${fileName}`, { method: "DELETE" })
-        .then(res => res.json())
-        .then(data => {
-            console.log(data.message);
-            fetchFileList();
-        });
-}
-
-// =============================
-// [แก้บั๊ก] ลบ block searchBox อันแรกออก เพราะไม่มี null check
-// เหลือแค่อันนี้อันเดียวที่เช็ค if (searchBox) ก่อนเรียกใช้
-// =============================
-const searchBox = document.getElementById("searchBox");
-if (searchBox) {
-    searchBox.addEventListener("input", function () {
-        const keyword = this.value.toLowerCase();
-        const items = document.querySelectorAll("#fileList li");
-        items.forEach(li => {
-            const text = li.textContent.toLowerCase();
-            li.style.display = text.includes(keyword) ? "" : "none";
-        });
-    });
-}
-
-// =============================
-// [เพิ่มใหม่] Notification System
-// สร้าง toast container ลอยอยู่มุมบนขวาของหน้า
-// =============================
-const toastContainer = document.createElement("div");
-toastContainer.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-`;
-document.body.appendChild(toastContainer);
-
-// ฟังก์ชันสร้าง toast popup แสดง 4 วินาทีแล้วหายไปเอง
-function showToast(message) {
-    const toast = document.createElement("div");
-    toast.style.cssText = `
-        background: #323232;
-        color: white;
-        padding: 12px 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        font-size: 14px;
-        max-width: 300px;
-        word-break: break-word;
-        opacity: 1;
-        transition: opacity 0.5s ease;
-    `;
-    toast.textContent = message;
-    toastContainer.appendChild(toast);
-    setTimeout(() => { toast.style.opacity = "0"; }, 3500);
-    setTimeout(() => { toast.remove(); }, 4000);
-}
-
-// =============================
-// [เพิ่มใหม่] Polling — เรียก /notifications ทุก 5 วิ
-// ถ้ามี notification ใหม่จะแสดง toast และ refresh list อัตโนมัติ
-// =============================
-if (username) {
-    setInterval(async () => {
-        try {
-            const res = await fetch(`${serverURL}/notifications/${username}`);
-            const msgs = await res.json();
-            if (msgs.length > 0) {
-                msgs.forEach(n => showToast(n.message));
-                fetchFileList();
-            }
-        } catch (err) {
-            console.error("Notification polling error:", err);
+            await fetch(`${API_URL}/upload`, {
+                method: "POST",
+                body: formData
+            });
         }
-    }, 5000);
+
+        statusText.innerText = "Upload successful!";
+        statusText.style.color = "green";
+        fileInput.value = ""; // ล้างช่องเลือกไฟล์
+        document.getElementById("fileName").innerText = "No file chosen";
+        
+        loadFiles(); // โหลดข้อมูลใหม่
+    } catch (error) {
+        console.error("Upload error:", error);
+        statusText.innerText = "Upload failed.";
+        statusText.style.color = "red";
+    }
+}
+
+// ดาวน์โหลดไฟล์
+function downloadFile(userFolder, fileName) {
+    window.open(`${API_URL}/download/${userFolder}/${fileName}`, '_blank');
+}
+
+// ลบไฟล์
+async function deleteFile(userFolder, fileName) {
+    if (!confirm(`Are you sure you want to delete ${fileName}?`)) return;
+
+    try {
+        const response = await fetch(`${API_URL}/delete/${userFolder}/${fileName}`, {
+            method: "DELETE"
+        });
+        
+        const result = await response.json();
+        if (response.ok) {
+            alert(result.message);
+            loadFiles(); // โหลดใหม่หลังลบเสร็จ
+        } else {
+            alert("Error: " + result.error);
+        }
+    } catch (error) {
+        console.error("Delete error:", error);
+    }
+}
+
+// ค้นหาไฟล์ (ช่อง Search Box)
+function searchFiles() {
+    const searchText = document.getElementById("searchBox").value.toLowerCase();
+    if (searchText === "") {
+        renderFiles(allFilesData); // ถ้าไม่ได้พิมพ์อะไร ให้แสดงทั้งหมด
+        return;
+    }
+
+    // กรองเอาเฉพาะไฟล์ที่มีชื่อตรงกับที่ค้นหา
+    const filtered = allFilesData.filter(item => item.file.toLowerCase().includes(searchText));
+    renderFiles(filtered);
 }
