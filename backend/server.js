@@ -7,6 +7,8 @@ const path = require("path");
 const app = express();
 const port = 3002;
 
+const METADATA_FILE = path.join(__dirname, "files.json");
+
 // --- [Middleware] ---
 app.use(cors());
 app.use(express.json());

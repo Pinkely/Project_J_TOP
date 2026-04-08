@@ -63,12 +63,12 @@ const uploadFile = async (event) => {
     const recipients = [...document.querySelectorAll("#recipientList input:checked")]
         .map(el => el.value);
 
-    if (fileInput.files.length === 0) {
+    if (!fileInput.files[0]) {
         alert("Please select a file to upload.");
         return;
     }
     if (recipients.length === 0) {
-        alert("Please select at least one recipient.");
+        alert("กรุณาเลือกผู้รับอย่างน้อย 1 คน");
         return;
     }
 
