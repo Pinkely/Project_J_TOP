@@ -3,6 +3,7 @@ const multer = require("multer");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
+const METADATA_FILE = path.join(__dirname, "files.json");
 
 const app = express();
 const port = 3001;
@@ -40,6 +41,17 @@ const upload = multer({ storage: storage });
 
 // --- [API Endpoints] ---
 
+// read metadata
+function readMetadata() {
+    if (!fs.existsSync(METADATA_FILE)) return {};
+    const data = fs.readFileSync(METADATA_FILE);
+    return JSON.parse(data);
+}
+
+function saveMetadata(metadata) {
+    fs.writeFileSync(METADATA_FILE, JSON.stringify(metadata, null, 2));
+}
+
 // POST upload — แยกโฟลเดอร์ตามคนรับ
 app.post("/upload", upload.single("file"), (req, res) => {
     try {
@@ -55,6 +67,23 @@ app.post("/upload", upload.single("file"), (req, res) => {
 
         const newPath = `${targetDir}/from_${sender}_${req.file.originalname}`;
         fs.renameSync(oldPath, newPath);
+
+        // Save Metadata
+        const files = readMetadata();
+
+        const newFile = {
+            id : Date.now().toString(),
+            filename: req.file.originalname,
+            path: newPath,
+            size: req.file.size,
+            sender,
+            recipient,
+            uploadTime: new Date().toISOString()
+        }
+
+        files.push(newFile);
+        saveMetadata(files);
+        console.log("Metadata saved:", newFile);
 
         // [เพิ่มใหม่] สร้าง notification ให้คนรับ
         const msg = {
