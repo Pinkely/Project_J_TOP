@@ -1,4 +1,4 @@
-const API_URL = "http://192.168.1.43:3001";
+const API_URL = "http://192.168.1.46:3001";
 let allFilesData = [];
 let _rowDataMap = {}; // key: 'user__file' → item object
 let sortKey = 'file';
@@ -18,8 +18,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (userDisplay) userDisplay.innerText = user;
 
     loadFiles();
-    setupFilePreview();
+    setupFileInput();
     setupSearchBox();
+    loadUserList();
 });
 
 // =============================
@@ -31,68 +32,69 @@ function logout() {
 }
 
 // =============================
-// Preview รูปตอนเลือกไฟล์ (ก่อน Upload)
+// File Input + Drag & Drop
 // =============================
-function setupFilePreview() {
+function setupFileInput() {
     const fileInput = document.getElementById("fileInput");
     if (!fileInput) return;
 
-    const previewBox = document.createElement("div");
-    previewBox.id = "uploadPreviewBox";
-    previewBox.style.cssText = `
-        margin-top: 12px;
-        display: none;
-        flex-direction: column;
-        align-items: center;
-        gap: 6px;
-    `;
-
-    const previewImg = document.createElement("img");
-    previewImg.id = "uploadPreviewImg";
-    previewImg.style.cssText = `
-        max-width: 220px;
-        max-height: 220px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-        object-fit: cover;
-    `;
-
-    const previewLabel = document.createElement("p");
-    previewLabel.id = "uploadPreviewLabel";
-    previewLabel.style.cssText = `font-size: 13px; color: #666; margin: 0;`;
-
-    previewBox.appendChild(previewImg);
-    previewBox.appendChild(previewLabel);
-    fileInput.parentNode.insertBefore(previewBox, fileInput.nextSibling);
-
     fileInput.addEventListener("change", () => {
         const file = fileInput.files[0];
-
-        const fileNameEl = document.getElementById("fileName");
-        if (fileNameEl) fileNameEl.textContent = file ? file.name : "No file chosen";
-
-        if (!file) {
-            previewBox.style.display = "none";
-            previewImg.src = "";
-            return;
-        }
-
-        if (file.type.startsWith("image/")) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                previewImg.style.display = "block";
-                previewImg.src = e.target.result;
-                previewLabel.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-                previewBox.style.display = "flex";
-            };
-            reader.readAsDataURL(file);
-        } else {
-            previewImg.src = "";
-            previewImg.style.display = "none";
-            previewLabel.textContent = `📄 ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-            previewBox.style.display = "flex";
-        }
+        updateFilePreview(file);
     });
+}
+
+function updateFilePreview(file) {
+    const area = document.getElementById("filePreviewArea");
+    const icon = document.getElementById("filePreviewIcon");
+    const name = document.getElementById("filePreviewName");
+    const size = document.getElementById("filePreviewSize");
+    if (!area) return;
+    if (!file) {
+        area.style.display = "none";
+        return;
+    }
+    icon.textContent = getFileIcon(file.name);
+    name.textContent = file.name;
+    size.textContent = formatSize(file.size);
+    area.style.display = "flex";
+}
+
+function clearFileInput() {
+    const fileInput = document.getElementById("fileInput");
+    if (fileInput) fileInput.value = "";
+    updateFilePreview(null);
+}
+
+function handleDragOver(event) {
+    event.preventDefault();
+    const zone = document.getElementById("dropZone");
+    if (zone) { zone.style.background = "#ede9fe"; zone.style.borderColor = "#7c3aed"; }
+}
+
+function handleDragLeave(event) {
+    const zone = document.getElementById("dropZone");
+    if (zone) { zone.style.background = "#f5f3ff"; zone.style.borderColor = "#a5b4fc"; }
+}
+
+function handleDrop(event) {
+    event.preventDefault();
+    handleDragLeave(event);
+    const files = event.dataTransfer.files;
+    if (files.length > 0) {
+        const fileInput = document.getElementById("fileInput");
+        const dt = new DataTransfer();
+        dt.items.add(files[0]);
+        fileInput.files = dt.files;
+        updateFilePreview(files[0]);
+    }
+}
+
+// =============================
+// Load User List (used by Share Modal)
+// =============================
+async function loadUserList() {
+    // ไม่ต้องทำอะไรแล้ว — user list โหลดตอนเปิด share modal แทน
 }
 
 // =============================
@@ -132,9 +134,11 @@ function formatDate(iso) {
 
 function getFileIcon(filename) {
     const ext = filename.split('.').pop().toLowerCase();
-    const icons = { pdf: '📄', png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', webp: '🖼️',
+    const icons = {
+        pdf: '📄', png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', webp: '🖼️',
         zip: '🗜️', rar: '🗜️', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊',
-        ppt: '📋', pptx: '📋', mp4: '🎬', mp3: '🎵', txt: '📃' };
+        ppt: '📋', pptx: '📋', mp4: '🎬', mp3: '🎵', txt: '📃'
+    };
     return icons[ext] || '📁';
 }
 
@@ -229,6 +233,14 @@ function renderFiles(data) {
     const container = document.getElementById("fileList") || document.getElementById("fileListContainer");
     const noFiles = document.getElementById("no-files");
 
+    // กรองข้อมูลอีกทีสำหรับ user ปกติ (ถ้าเป็น admin จะเห็นหมดอยู่แล้ว)
+    const username = localStorage.getItem("username");
+    const role = localStorage.getItem("role");
+    if (role !== 'admin') {
+        data = data.filter(item => item.user === username);
+    }
+    // -----------------------
+
     if (!container) return;
     container.innerHTML = "";
 
@@ -284,6 +296,11 @@ function renderFiles(data) {
                         <span class="col-date date-cell">${formatDate(item.uploadTime)}</span>
                         <span class="col-size size-cell">${formatSize(item.size)}</span>
                         <span class="col-actions action-btns">
+
+                        <button class="btn-share" onclick="openShareModal('${item.file}')" style="background: #6366f1; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">
+                          Share
+                         </button>
+
                             <button class="btn-download" onclick="downloadFile('${item.user}', '${item.file}')" title="Download">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                                 Download
@@ -299,8 +316,8 @@ function renderFiles(data) {
         </div>`;
     }
 
-    // All files group อยู่บนสุด (collapsed by default)
-    const allGroup = buildGroup('All Files', '★', data, true);
+    // All files group (เฉพาะ admin) จะอยู่ด้านบนสุด และไม่มี collapse
+    const allGroup = (role === 'admin') ? buildGroup('All Files', '★', data, true) : "";
 
     // แต่ละ user group
     const userGroups = Object.entries(grouped).map(([user, items]) =>
@@ -334,48 +351,48 @@ function renderFiles(data) {
 async function uploadFile(event) {
     event.preventDefault();
     const fileInput = document.getElementById("fileInput");
-    const statusText = document.getElementById("uploadStatus");
     const sender = localStorage.getItem("username");
-
-    const recipients = [...document.querySelectorAll('#recipientList input[type="checkbox"]:checked')]
-        .map(cb => cb.value);
+    const statusEl = document.getElementById("uploadStatus");
 
     if (!fileInput.files[0]) {
-        alert("Please select a file to upload.");
-        return;
-    }
-    if (recipients.length === 0) {
-        alert("Please select at least one recipient.");
+        if (statusEl) { statusEl.textContent = "⚠️ กรุณาเลือกไฟล์ก่อน"; statusEl.style.color = "#f59e0b"; }
         return;
     }
 
-    if (statusText) { statusText.innerText = "Uploading..."; statusText.style.color = "blue"; }
+    if (statusEl) { statusEl.textContent = "⏳ กำลังอัปโหลด..."; statusEl.style.color = "#6366f1"; }
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("sender", sender);
+    formData.append("recipient", sender); // อัปโหลดเข้าโฟลเดอร์ตัวเองเสมอ
 
     try {
-        for (const recipient of recipients) {
-            const formData = new FormData();
-            formData.append("file", fileInput.files[0]);
-            formData.append("sender", sender);
-            formData.append("recipient", recipient);
-            await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
+        const res = await fetch(`${API_URL}/upload`, { method: "POST", body: formData });
+        if (res.ok) {
+            if (statusEl) { statusEl.textContent = "✅ อัปโหลดเรียบร้อย!"; statusEl.style.color = "#10b981"; }
+            clearFileInput();
+            loadFiles();
+            setTimeout(() => { if (statusEl) statusEl.textContent = ""; }, 3000);
+        } else {
+            if (statusEl) { statusEl.textContent = "❌ เกิดข้อผิดพลาด กรุณาลองใหม่"; statusEl.style.color = "#ef4444"; }
         }
-
-        if (statusText) { statusText.innerText = "Upload successful!"; statusText.style.color = "green"; }
-
-        fileInput.value = "";
-        const fileNameEl = document.getElementById("fileName");
-        if (fileNameEl) fileNameEl.innerText = "No file chosen";
-
-        const previewBox = document.getElementById("uploadPreviewBox");
-        const previewImg = document.getElementById("uploadPreviewImg");
-        if (previewBox) previewBox.style.display = "none";
-        if (previewImg) previewImg.src = "";
-
-        loadFiles();
     } catch (error) {
         console.error("Upload error:", error);
-        if (statusText) { statusText.innerText = "Upload failed."; statusText.style.color = "red"; }
+        if (statusEl) { statusEl.textContent = "❌ ไม่สามารถเชื่อมต่อ server ได้"; statusEl.style.color = "#ef4444"; }
     }
+}
+
+// --- 2. ฟังก์ชันใหม่สำหรับ "ส่งไฟล์ที่มีอยู่แล้ว" ให้คนอื่น ---
+async function sendToUser(fileName, targetUser) {
+    const sender = localStorage.getItem("username");
+    try {
+        const response = await fetch(`${API_URL}/share-file`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileName, sender, recipient: targetUser })
+        });
+        if (response.ok) alert(`Sent ${fileName} to ${targetUser}`);
+    } catch (error) { console.error(error); }
 }
 
 // =============================
@@ -520,4 +537,102 @@ function moveHoverPreview(event) {
 function hideHoverPreview() {
     hoverPreviewContainer.style.display = "none";
     hoverPreviewImage.src = "";
+}
+
+async function openShareModal(fileName) {
+    const me = localStorage.getItem("username");
+
+    // ดึง user list ล่าสุดจาก server
+    let users = [];
+    try {
+        const res = await fetch(`${API_URL}/users`);
+        users = (await res.json()).filter(u => u.username !== me);
+    } catch (e) {}
+
+    // ลบ modal เก่าถ้ามี
+    const old = document.getElementById("shareModalOverlay");
+    if (old) old.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "shareModalOverlay";
+    overlay.style.cssText = `
+        position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+        display: flex; align-items: center; justify-content: center;
+        z-index: 99999;
+    `;
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+
+    const modal = document.createElement("div");
+    modal.style.cssText = `
+        background: white; border-radius: 16px; padding: 28px;
+        width: 360px; max-width: 92vw;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    `;
+
+    const userOptions = users.length > 0
+        ? users.map(u => `
+            <label style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; transition:background 0.15s;"
+                onmouseover="this.style.background='#f5f3ff'" onmouseout="this.style.background='transparent'">
+                <input type="checkbox" value="${u.username}" style="width:16px; height:16px; accent-color:#6366f1;">
+                <span style="font-size:28px; line-height:1;">${u.username.charAt(0).toUpperCase()}</span>
+                <span style="font-weight:500;">${u.username}</span>
+            </label>`).join('')
+        : `<p style="color:#888; text-align:center; padding: 12px 0;">ไม่มีผู้ใช้งานอื่นในระบบ</p>`;
+
+    modal.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+            <h3 style="margin:0; font-size:17px;">📤 ส่งไฟล์ให้เพื่อน</h3>
+            <button onclick="document.getElementById('shareModalOverlay').remove()"
+                style="background:none; border:none; font-size:20px; cursor:pointer; color:#888; line-height:1;">✕</button>
+        </div>
+        <div style="background:#f9fafb; border-radius:8px; padding:8px 12px; margin-bottom:16px; font-size:13px; color:#374151;">
+            📄 <strong>${fileName}</strong>
+        </div>
+        <div style="font-size:13px; font-weight:600; color:#374151; margin-bottom:8px;">เลือกผู้รับ:</div>
+        <div id="shareUserList" style="max-height:200px; overflow-y:auto; border:1.5px solid #e5e7eb; border-radius:10px; padding:4px;">
+            ${userOptions}
+        </div>
+        <button id="shareConfirmBtn" onclick="confirmShare('${fileName}')" style="
+            margin-top:18px; width:100%; padding:11px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color:white; border:none; border-radius:10px;
+            font-size:15px; font-weight:600; cursor:pointer;
+        ">✉️ ส่งเลย</button>
+        <div id="shareStatus" style="margin-top:8px; text-align:center; font-size:13px; min-height:18px;"></div>
+    `;
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+}
+
+async function confirmShare(fileName) {
+    const checked = [...document.querySelectorAll("#shareUserList input[type='checkbox']:checked")];
+    const recipients = checked.map(c => c.value);
+    const statusEl = document.getElementById("shareStatus");
+
+    if (recipients.length === 0) {
+        if (statusEl) { statusEl.textContent = "⚠️ กรุณาเลือกผู้รับก่อนกดส่ง"; statusEl.style.color = "#f59e0b"; }
+        return;
+    }
+
+    const sender = localStorage.getItem("username");
+    const btn = document.getElementById("shareConfirmBtn");
+    if (btn) btn.disabled = true;
+    if (statusEl) { statusEl.textContent = "⏳ กำลังส่ง..."; statusEl.style.color = "#6366f1"; }
+
+    let success = 0;
+    for (const recipient of recipients) {
+        try {
+            const res = await fetch(`${API_URL}/share-file`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ fileName, sender, recipient })
+            });
+            if (res.ok) success++;
+        } catch (e) { console.error(e); }
+    }
+
+    if (statusEl) { statusEl.textContent = `✅ ส่งไฟล์ให้ ${success} คน เรียบร้อย!`; statusEl.style.color = "#10b981"; }
+    loadFiles();
+    setTimeout(() => { document.getElementById("shareModalOverlay")?.remove(); }, 1500);
 }

@@ -42,6 +42,16 @@ function saveMetadata(metadata) {
     fs.writeFileSync(METADATA_FILE, JSON.stringify(metadata, null, 2));
 }
 
+// GET /users — return user list (username + role only, no passwords)
+app.get("/users", (req, res) => {
+    try {
+        const users = JSON.parse(fs.readFileSync(path.join(__dirname, "users.json")));
+        res.json(users.map(u => ({ username: u.username, role: u.role })));
+    } catch (e) {
+        res.json([]);
+    }
+});
+
 // --- [API Endpoints] ---
 
 // POST /upload
@@ -90,13 +100,49 @@ app.post("/upload", upload.single("file"), (req, res) => {
     }
 });
 
+//ก็อปไฟล์ส่งให้เพื่อน (ไม่ต้องอัพโหลดใหม่)
+app.post("/share-file", (req, res) => {
+    const { fileName, sender, recipient } = req.body;
+    
+    const sourcePath = path.join(__dirname, "uploads", sender, fileName);
+    const targetDir = path.join(__dirname, "uploads", recipient);
+    const targetPath = path.join(targetDir, fileName);
+
+    // สร้างโฟลเดอร์ผู้รับถ้ายังไม่มี
+    if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+
+    // ก๊อปปี้ไฟล์จากโฟลเดอร์เราไปให้เพื่อน
+    fs.copyFile(sourcePath, targetPath, (err) => {
+        if (err) return res.status(500).json({ error: "Share failed" });
+        
+        // บันทึก metadata เพิ่มเพื่อให้เพื่อนเห็นว่าเราเป็นคนส่ง
+        const metadata = readMetadata();
+        metadata.push({
+            user: recipient,
+            file: fileName,
+            sender: sender,
+            uploadTime: new Date().toISOString(),
+            size: fs.statSync(targetPath).size
+        });
+        saveMetadata(metadata);
+        
+        res.json({ message: "File shared successfully" });
+    });
+});
+
 // GET /files — admin เห็นทุกคน, user เห็นแค่ตัวเอง
 app.get("/files", (req, res) => {
     const { username, role } = req.query;
     const metadata = readMetadata();
 
     function enrichFile(user, file) {
-        const meta = metadata.find(m => m.recipient === user && m.filename === file.replace(/^from_[^_]+_/, ''));
+        const cleanName = file.replace(/^from_[^_]+_/, '');
+        // รองรับทั้ง upload format (recipient+filename) และ share format (user+file)
+        const meta = metadata.find(m =>
+            (m.recipient === user && m.filename === cleanName) ||
+            (m.user === user && m.file === file) ||
+            (m.user === user && m.file === cleanName)
+        );
         const filePath = path.join(__dirname, "uploads", user, file);
         const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
         return {
